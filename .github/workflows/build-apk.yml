@@ -1,0 +1,49 @@
+name: Build APK from zip
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unzip project
+        run: |
+          unzip -q AndroidHarness-4.0-phone-control.zip
+          ls
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Install NDK and shader compiler
+        run: |
+          "${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools/latest/bin/sdkmanager" --install 'ndk;27.2.12479018'
+          sudo apt-get update && sudo apt-get install -y glslc
+
+      - name: Build debug APK
+        working-directory: AndroidHarness-4.0-release
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug --no-daemon --stacktrace 2>&1 | tee ../build.log
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: harness-debug-apk
+          path: AndroidHarness-4.0-release/app/build/outputs/apk/debug/*.apk
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
